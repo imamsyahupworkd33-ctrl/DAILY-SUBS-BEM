@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daily Tag Update Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root{
+    --bg:#F3F4FB; --surface:#FFFFFF; --surface-alt:#F4F5FB; --surface-alt-2:#ECEEF9;
+    --border:#E7E9F5; --border-strong:#D7DAEE;
+    --text-primary:#12131F; --text-secondary:#5D6079; --text-muted:#999CB5;
+    --primary:#4F46E5; --primary-2:#7C3AED; --primary-dark:#3E35C7; --primary-soft:#EEEDFD;
+    --success:#059669; --success-2:#10B981; --success-soft:#E1F7EE;
+    --warning:#D97706; --warning-2:#F59E0B; --warning-soft:#FEF1DC;
+    --danger:#E11D48; --danger-2:#F43F5E; --danger-soft:#FDE7EC;
+    --shadow-sm:0 2px 8px rgba(18,19,31,0.05);
+    --shadow-md:0 8px 24px rgba(30,26,80,0.08);
+    --shadow-lg:0 20px 48px rgba(30,26,80,0.16);
+    --shadow-glow-primary:0 10px 24px rgba(79,70,229,0.28);
+    --radius-sm:9px; --radius-md:14px; --radius-lg:20px; --radius-xl:26px;
+    --font-display:'Sora','Inter',sans-serif;
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+*{ margin:0; padding:0; box-sizing:border-box; }
+html{ -webkit-font-smoothing:antialiased; scroll-behavior:smooth; }
+body{
+    background:var(--bg); font-family:var(--font-body); color:var(--text-primary);
+    padding:28px 20px 70px; min-height:100vh; line-height:1.45;
+}
+.wrap{ max-width:1080px; margin:0 auto; }
+
+/* Header */
+.page-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap; }
+.page-header h1{ font-family:var(--font-display); font-size:26px; font-weight:800; letter-spacing:-0.02em; }
+.page-header p{ color:var(--text-secondary); font-size:14px; margin-top:4px; }
+.badge-live{ display:inline-flex; align-items:center; gap:6px; background:var(--success-soft); color:var(--success); font-weight:700; font-size:12px; padding:6px 12px; border-radius:99px; }
+.badge-live::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--success-2); box-shadow:0 0 0 3px var(--success-soft); }
+
+/* Tabs */
+.tabs{ display:flex; gap:6px; background:var(--surface-alt-2); padding:5px; border-radius:var(--radius-md); width:fit-content; margin-bottom:22px; }
+.tab-btn{ border:none; background:transparent; padding:9px 18px; border-radius:var(--radius-sm); font-family:var(--font-body); font-weight:700; font-size:13.5px; color:var(--text-secondary); cursor:pointer; transition:all .15s; }
+.tab-btn.active{ background:var(--surface); color:var(--primary); box-shadow:var(--shadow-sm); }
+.tab-panel{ display:none; }
+.tab-panel.active{ display:block; animation:fadeIn .2s ease; }
+@keyframes fadeIn{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+/* Stat cards */
+.stats-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+.stat-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; box-shadow:var(--shadow-sm); }
+.stat-card .sc-label{ font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+.stat-card .sc-value{ font-family:var(--font-display); font-size:28px; font-weight:800; margin-top:6px; }
+.stat-card.primary .sc-value{ color:var(--primary); }
+.stat-card.success .sc-value{ color:var(--success); }
+.stat-card.warning .sc-value{ color:var(--warning); }
+
+/* Panels */
+.panel{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:22px; box-shadow:var(--shadow-sm); margin-bottom:20px; }
+.panel-title{ font-family:var(--font-display); font-size:16px; font-weight:800; margin-bottom:4px; }
+.panel-sub{ font-size:13px; color:var(--text-secondary); margin-bottom:16px; }
+
+/* Form elements */
+label.field-label{ display:block; font-size:12.5px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; }
+input[type=text], input[type=number], textarea{
+    width:100%; border:1.5px solid var(--border-strong); border-radius:var(--radius-sm);
+    padding:11px 13px; font-family:var(--font-body); font-size:14px; color:var(--text-primary);
+    background:var(--surface-alt); outline:none; transition:border-color .15s, background .15s;
+}
+input:focus, textarea:focus{ border-color:var(--primary); background:var(--surface); }
+textarea{ resize:vertical; min-height:110px; line-height:1.6; }
+.field-group{ margin-bottom:14px; }
+.two-col{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* Chips */
+.chip{ display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; padding:5px 11px; border-radius:99px; background:var(--surface-alt-2); color:var(--text-secondary); }
+.chip-info{ background:var(--primary-soft); color:var(--primary); }
+.chip-success{ background:var(--success-soft); color:var(--success); }
+.chip-danger{ background:var(--danger-soft); color:var(--danger); }
+.chip-row{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 4px; }
+
+/* Duplicate list */
+.dup-panel{ margin-top:10px; border:1.5px dashed var(--danger-2); background:var(--danger-soft); border-radius:var(--radius-sm); padding:10px 13px; font-size:12.5px; color:var(--danger); }
+.dup-panel .dup-item{ display:flex; justify-content:space-between; padding:3px 0; }
+.clean-panel{ margin-top:10px; background:var(--success-soft); color:var(--success); border-radius:var(--radius-sm); padding:9px 13px; font-size:12.5px; font-weight:600; }
+
+/* Buttons */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; border:none; cursor:pointer; font-family:var(--font-body); font-weight:700; font-size:13.5px; padding:11px 18px; border-radius:var(--radius-sm); transition:transform .1s, box-shadow .15s, opacity .15s; }
+.btn:active{ transform:scale(.98); }
+.btn-primary{ background:linear-gradient(135deg,var(--primary),var(--primary-2)); color:#fff; box-shadow:var(--shadow-glow-primary); }
+.btn-primary:hover{ opacity:.92; }
+.btn-outline{ background:var(--surface); border:1.5px solid var(--border-strong); color:var(--text-primary); }
+.btn-outline:hover{ border-color:var(--primary); color:var(--primary); }
+.btn-danger{ background:var(--danger); color:#fff; }
+.btn-success{ background:var(--success); color:#fff; }
+.btn-sm{ padding:7px 12px; font-size:12.5px; }
+.btn-icon{ padding:7px 9px; }
+.btn[disabled]{ opacity:.5; cursor:not-allowed; }
+
+/* Table */
+.table-wrap{ overflow-x:auto; }
+table.data-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+table.data-table th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted); font-weight:700; padding:10px 12px; border-bottom:2px solid var(--border); }
+table.data-table td{ padding:12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+table.data-table tr:hover td{ background:var(--surface-alt); }
+.seq-badge{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:var(--primary-soft); color:var(--primary); font-weight:800; font-size:12.5px; }
+.order-name-cell{ font-weight:700; }
+.tag-count-cell{ font-family:var(--font-display); font-weight:800; color:var(--primary); }
+.taken-toggle{ width:22px; height:22px; cursor:pointer; accent-color:var(--success); }
+.actions-cell{ display:flex; gap:6px; }
+.empty-state{ text-align:center; padding:40px 10px; color:var(--text-muted); font-size:13.5px; }
+.empty-state .es-icon{ font-size:30px; margin-bottom:8px; }
+
+/* Edit row */
+.edit-row td{ background:var(--surface-alt); }
+.edit-box{ display:flex; flex-direction:column; gap:10px; }
+
+/* Log list */
+.log-item{ display:flex; gap:12px; padding:14px 4px; border-bottom:1px solid var(--border); }
+.log-item:last-child{ border-bottom:none; }
+.log-icon{ width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.log-icon.add{ background:var(--success-soft); }
+.log-icon.edit{ background:var(--warning-soft); }
+.log-icon.del{ background:var(--danger-soft); }
+.log-icon.manual{ background:var(--primary-soft); }
+.log-body{ flex:1; }
+.log-desc{ font-weight:700; font-size:13.5px; }
+.log-meta{ font-size:12px; color:var(--text-muted); margin-top:2px; }
+.log-amount{ font-weight:800; font-size:14px; white-space:nowrap; }
+.log-amount.pos{ color:var(--success); }
+.log-amount.neg{ color:var(--danger); }
+
+/* Toast */
+#toastHost{ position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:999; }
+.toast{ background:var(--text-primary); color:#fff; padding:12px 18px; border-radius:var(--radius-sm); font-size:13.5px; font-weight:600; box-shadow:var(--shadow-lg); animation:slideIn .2s ease; }
+.toast.success{ background:var(--success); }
+.toast.danger{ background:var(--danger); }
+@keyframes slideIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+
+@media (max-width:720px){
+    .stats-grid{ grid-template-columns:repeat(2,1fr); }
+    .two-col{ grid-template-columns:1fr; }
+    table.data-table{ font-size:12.5px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+    <div class="page-header">
+        <div>
+            <h1>📊 Daily Tag Update Tracker</h1>
+            <p>Log daily hashtag entries, keep the running total in sync, and review every change.</p>
+        </div>
+        <span class="badge-live">Connected to Supabase</span>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="tabBtnOverview" onclick="switchTab('overview')">🏷️ Overview</button>
+        <button class="tab-btn" id="tabBtnLogs" onclick="switchTab('logs')">🗒️ Activity Log</button>
+    </div>
+
+    <!-- ===================== OVERVIEW TAB ===================== -->
+    <div class="tab-panel active" id="panelOverview">
+
+        <div class="stats-grid">
+            <div class="stat-card primary">
+                <div class="sc-label">Total Tags</div>
+                <div class="sc-value" id="statTotalTags">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="sc-label">Total Orders</div>
+                <div class="sc-value" id="statTotalOrders">0</div>
+            </div>
+            <div class="stat-card success">
+                <div class="sc-label">Taken</div>
+                <div class="sc-value" id="statTaken">0</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="sc-label">Pending</div>
+                <div class="sc-value" id="statPending">0</div>
+            </div>
+        </div>
+
+        <!-- Add order box -->
+        <section class="panel">
+            <div class="panel-title">➕ Add Daily Tag Entry</div>
+            <div class="panel-sub">Paste the hashtags for this order (one per line, or comma-separated). They'll be counted automatically and checked for duplicates.</div>
+
+            <div class="field-group">
+                <label class="field-label">Order Name</label>
+                <input type="text" id="orderNameInput" placeholder="e.g. Order #A102 / Customer name" />
+            </div>
+
+            <div class="field-group">
+                <label class="field-label">Hashtags for this order</label>
+                <textarea id="tagarBulkInput" placeholder="#tagone&#10;#tagtwo&#10;#tagthree" oninput="updateLivePreview()"></textarea>
+            </div>
+
+            <div class="chip-row" id="liveChipRow">
+                <span class="chip chip-info" id="liveTotalChip">Total: 0</span>
+                <span class="chip chip-success" id="liveDupChip">✅ No duplicates</span>
+            </div>
+            <div id="liveDupPanelHost"></div>
+
+            <div style="margin-top:16px;">
+                <button class="btn btn-primary" onclick="handleAddOrder()">Add Entry &amp; Update Total</button>
+            </div>
+        </section>
+
+        <!-- Manual add-to-total box -->
+        <section class="panel">
+            <div class="panel-title">🔢 Quick Add to Total Tag Count</div>
+            <div class="panel-sub">Add a plain number straight to the running total — e.g. type 20 and the total will increase by 20.</div>
+
+            <div class="two-col">
+                <div class="field-group">
+                    <label class="field-label">Amount to add</label>
+                    <input type="number" id="manualAmountInput" min="1" placeholder="e.g. 20" />
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Note (optional)</label>
+                    <input type="text" id="manualNoteInput" placeholder="e.g. carried over from yesterday" />
+                </div>
+            </div>
+
+            <button class="btn btn-outline" onclick="handleManualAdd()">Add to Total</button>
+        </section>
+
+        <!-- Orders table -->
+        <section class="panel">
+            <div class="panel-title">📋 Orders</div>
+            <div class="panel-sub">Numbered in the order they were entered. Tick the box once an order has been taken.</div>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width:52px;">#</th>
+                            <th>Order Name</th>
+                            <th style="width:110px;">Tag Count</th>
+                            <th style="width:70px;">Taken</th>
+                            <th style="width:130px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody"></tbody>
+                </table>
+            </div>
+            <div class="empty-state" id="ordersEmptyState" style="display:none;">
+                <div class="es-icon">🗂️</div>
+                No orders yet — add your first entry above.
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ===================== ACTIVITY LOG TAB ===================== -->
+    <div class="tab-panel" id="panelLogs">
+        <section class="panel">
+            <div class="panel-title">🗒️ Notes — Full Change History</div>
+            <div class="panel-sub">Every tag entry, edit, deletion, and manual total update is recorded here automatically.</div>
+            <div id="logsList"></div>
+            <div class="empty-state" id="logsEmptyState" style="display:none;">
+                <div class="es-icon">📭</div>
+                No activity recorded yet.
+            </div>
+        </section>
+    </div>
+
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+/* ==================================================================
+   CONFIG — same Supabase project as the main dashboard
+   ================================================================== */
+const SUPABASE_URL = "https://drryamosodluupxbbtee.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRycnlhbW9zb2RsdXVweGJidGVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyMzEwMTgsImV4cCI6MjA5ODgwNzAxOH0.q_Dq4w3Ugv7rCq3NeEXSIYEuNCbsG19Ghsj2vo0_TOc";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ==================================================================
+   STATE
+   ================================================================== */
+let ordersState = [];
+let logsState = [];
+let currentTotal = 0;
+let editingOrderId = null;
+
+/* ==================================================================
+   TAGAR PARSING (count + duplicate check)
+   ================================================================== */
+function parseTagarBulk(rawText) {
+    const tokens = (rawText || "")
+        .split(/[\n,]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const countMap = new Map();
+    const firstSeen = new Map();
+    const positions = new Map();
+
+    tokens.forEach((t, i) => {
+        const key = t.toLowerCase();
+        countMap.set(key, (countMap.get(key) || 0) + 1);
+        if (!firstSeen.has(key)) firstSeen.set(key, t);
+        if (!positions.has(key)) positions.set(key, []);
+        positions.get(key).push(i + 1);
+    });
+
+    const duplicates = [];
+    countMap.forEach((count, key) => {
+        if (count > 1) {
+            duplicates.push({ tagar: firstSeen.get(key), count, positions: positions.get(key) });
+        }
+    });
+    duplicates.sort((a, b) => b.count - a.count);
+
+    return {
+        tokens,
+        total: tokens.length,
+        uniqueCount: countMap.size,
+        duplicateCount: tokens.length - countMap.size,
+        duplicates
+    };
+}
+
+function escapeHtml(str) {
+    return String(str ?? "").replace(/[&<>"']/g, m => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    })[m]);
+}
+
+function updateLivePreview() {
+    const textarea = document.getElementById("tagarBulkInput");
+    const parsed = parseTagarBulk(textarea.value);
+
+    document.getElementById("liveTotalChip").innerText = `Total: ${parsed.total}`;
+
+    const dupChip = document.getElementById("liveDupChip");
+    if (parsed.duplicateCount > 0) {
+        dupChip.className = "chip chip-danger";
+        dupChip.innerText = `⚠️ ${parsed.duplicateCount} duplicate(s)`;
+    } else {
+        dupChip.className = "chip chip-success";
+        dupChip.innerText = "✅ No duplicates";
+    }
+
+    const host = document.getElementById("liveDupPanelHost");
+    if (parsed.duplicates.length > 0) {
+        host.innerHTML = `
+            <div class="dup-panel">
+                ${parsed.duplicates.map(d => `
+                    <div class="dup-item">
+                        <span>${escapeHtml(d.tagar)}</span>
+                        <span>${d.count}× &middot; lines ${d.positions.join(", ")}</span>
+                    </div>
+                `).join("")}
+            </div>`;
+    } else {
+        host.innerHTML = "";
+    }
+}
+
+/* ==================================================================
+   TOAST
+   ================================================================== */
+function showToast(message, type = "") {
+    const host = document.getElementById("toastHost");
+    const el = document.createElement("div");
+    el.className = `toast ${type}`;
+    el.innerText = message;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 3200);
+}
+
+/* ==================================================================
+   TABS
+   ================================================================== */
+function switchTab(name) {
+    document.getElementById("panelOverview").classList.toggle("active", name === "overview");
+    document.getElementById("panelLogs").classList.toggle("active", name === "logs");
+    document.getElementById("tabBtnOverview").classList.toggle("active", name === "overview");
+    document.getElementById("tabBtnLogs").classList.toggle("active", name === "logs");
+}
+
+/* ==================================================================
+   COUNTER + LOG HELPER
+   Reads the current total, applies a signed delta, writes the new
+   total back, and inserts one row into the activity log.
+   ================================================================== */
+async function applyCounterChange(delta, logType, description, note = "") {
+    const { data: counterRow, error: readErr } = await supabaseClient
+        .from("daily_tag_counter")
+        .select("*")
+        .eq("id", 1)
+        .single();
+
+    if (readErr) {
+        console.error(readErr);
+        showToast("Failed to read the current total", "danger");
+        return null;
+    }
+
+    const previousTotal = counterRow ? counterRow.total_tag : 0;
+    const newTotal = previousTotal + delta;
+
+    const { error: updateErr } = await supabaseClient
+        .from("daily_tag_counter")
+        .update({ total_tag: newTotal, updated_at: new Date().toISOString() })
+        .eq("id", 1);
+
+    if (updateErr) {
+        console.error(updateErr);
+        showToast("Failed to update the total", "danger");
+        return null;
+    }
+
+    await supabaseClient.from("daily_tag_logs").insert([{
+        log_type: logType,
+        description,
+        note,
+        amount: delta,
+        previous_total: previousTotal,
+        new_total: newTotal
+    }]);
+
+    currentTotal = newTotal;
+    return newTotal;
+}
+
+/* ==================================================================
+   ADD ORDER (daily tagar entry)
+   ================================================================== */
+async function handleAddOrder() {
+    const nameInput = document.getElementById("orderNameInput");
+    const textarea = document.getElementById("tagarBulkInput");
+
+    const orderName = nameInput.value.trim();
+    const parsed = parseTagarBulk(textarea.value);
+
+    if (!orderName) {
+        showToast("Please enter an order name", "danger");
+        return;
+    }
+    if (parsed.total === 0) {
+        showToast("Please paste at least one hashtag", "danger");
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from("daily_tag_orders")
+        .insert([{
+            order_name: orderName,
+            tagar_list: textarea.value.trim(),
+            tag_count: parsed.total,
+            duplicate_count: parsed.duplicateCount,
+            taken: false
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.error(error);
+        showToast("Failed to save the order", "danger");
+        return;
+    }
+
+    await applyCounterChange(
+        parsed.total,
+        "order_add",
+        `New order "${orderName}" added with ${parsed.total} tag(s)`
+    );
+
+    nameInput.value = "";
+    textarea.value = "";
+    updateLivePreview();
+
+    showToast(`Order added — ${parsed.total} tag(s) counted`, "success");
+    await loadAll();
+}
+
+/* ==================================================================
+   MANUAL ADD TO TOTAL
+   ================================================================== */
+async function handleManualAdd() {
+    const amountInput = document.getElementById("manualAmountInput");
+    const noteInput = document.getElementById("manualNoteInput");
+
+    const amount = parseInt(amountInput.value, 10);
+    if (!amount || amount <= 0) {
+        showToast("Enter a valid amount greater than 0", "danger");
+        return;
+    }
+
+    const note = noteInput.value.trim();
+    await applyCounterChange(
+        amount,
+        "manual_add",
+        `Manually added ${amount} tag(s) to the total`,
+        note
+    );
+
+    amountInput.value = "";
+    noteInput.value = "";
+    showToast(`+${amount} added to the total`, "success");
+    await loadAll();
+}
+
+/* ==================================================================
+   TOGGLE TAKEN
+   ================================================================== */
+async function toggleTaken(id, checked) {
+    const { error } = await supabaseClient
+        .from("daily_tag_orders")
+        .update({ taken: checked, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+    if (error) {
+        console.error(error);
+        showToast("Failed to update status", "danger");
+        return;
+    }
+    await loadAll();
+}
+
+/* ==================================================================
+   EDIT ORDER
+   ================================================================== */
+function startEditOrder(id) {
+    editingOrderId = id;
+    renderOrdersTable();
+}
+
+function cancelEditOrder() {
+    editingOrderId = null;
+    renderOrdersTable();
+}
+
+async function saveEditOrder(id) {
+    const order = ordersState.find(o => o.id === id);
+    if (!order) return;
+
+    const nameEl = document.getElementById(`editName-${id}`);
+    const tagarEl = document.getElementById(`editTagar-${id}`);
+
+    const newName = nameEl.value.trim();
+    const parsed = parseTagarBulk(tagarEl.value);
+
+    if (!newName) {
+        showToast("Order name cannot be empty", "danger");
+        return;
+    }
+    if (parsed.total === 0) {
+        showToast("Please keep at least one hashtag", "danger");
+        return;
+    }
+
+    const oldCount = order.tag_count;
+    const delta = parsed.total - oldCount;
+
+    const { error } = await supabaseClient
+        .from("daily_tag_orders")
+        .update({
+            order_name: newName,
+            tagar_list: tagarEl.value.trim(),
+            tag_count: parsed.total,
+            duplicate_count: parsed.duplicateCount,
+            updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+
+    if (error) {
+        console.error(error);
+        showToast("Failed to save changes", "danger");
+        return;
+    }
+
+    if (delta !== 0) {
+        await applyCounterChange(
+            delta,
+            "order_edit",
+            `Order "${newName}" edited (${oldCount} → ${parsed.total} tags)`
+        );
+    }
+
+    editingOrderId = null;
+    showToast("Order updated", "success");
+    await loadAll();
+}
+
+/* ==================================================================
+   DELETE ORDER
+   ================================================================== */
+async function deleteOrder(id) {
+    const order = ordersState.find(o => o.id === id);
+    if (!order) return;
+
+    if (!confirm(`Delete order "${order.order_name}"? This will subtract ${order.tag_count} tag(s) from the total.`)) {
+        return;
+    }
+
+    const { error } = await supabaseClient.from("daily_tag_orders").delete().eq("id", id);
+    if (error) {
+        console.error(error);
+        showToast("Failed to delete the order", "danger");
+        return;
+    }
+
+    if (order.tag_count > 0) {
+        await applyCounterChange(
+            -order.tag_count,
+            "order_delete",
+            `Order "${order.order_name}" deleted (-${order.tag_count} tags)`
+        );
+    }
+
+    showToast("Order deleted", "success");
+    await loadAll();
+}
+
+/* ==================================================================
+   RENDER — Orders table
+   ================================================================== */
+function renderOrdersTable() {
+    const tbody = document.getElementById("ordersTableBody");
+    const emptyState = document.getElementById("ordersEmptyState");
+
+    if (ordersState.length === 0) {
+        tbody.innerHTML = "";
+        emptyState.style.display = "block";
+        return;
+    }
+    emptyState.style.display = "none";
+
+    tbody.innerHTML = ordersState.map((order, idx) => {
+        const seq = idx + 1;
+
+        if (editingOrderId === order.id) {
+            return `
+                <tr class="edit-row">
+                    <td colspan="5">
+                        <div class="edit-box">
+                            <div>
+                                <label class="field-label">Order Name</label>
+                                <input type="text" id="editName-${order.id}" value="${escapeHtml(order.order_name)}" />
+                            </div>
+                            <div>
+                                <label class="field-label">Hashtags</label>
+                                <textarea id="editTagar-${order.id}">${escapeHtml(order.tagar_list || "")}</textarea>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-primary btn-sm" onclick="saveEditOrder(${order.id})">💾 Save</button>
+                                <button class="btn btn-outline btn-sm" onclick="cancelEditOrder()">Cancel</button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
+        }
+
+        return `
+            <tr>
+                <td><span class="seq-badge">${seq}</span></td>
+                <td class="order-name-cell">${escapeHtml(order.order_name)}</td>
+                <td class="tag-count-cell">${order.tag_count}</td>
+                <td>
+                    <input type="checkbox" class="taken-toggle" ${order.taken ? "checked" : ""}
+                        onchange="toggleTaken(${order.id}, this.checked)" title="Mark as taken" />
+                </td>
+                <td class="actions-cell">
+                    <button class="btn btn-outline btn-icon btn-sm" onclick="startEditOrder(${order.id})" title="Edit">✏️</button>
+                    <button class="btn btn-danger btn-icon btn-sm" onclick="deleteOrder(${order.id})" title="Delete">🗑</button>
+                </td>
+            </tr>`;
+    }).join("");
+}
+
+/* ==================================================================
+   RENDER — Stats
+   ================================================================== */
+function renderStats() {
+    document.getElementById("statTotalTags").innerText = currentTotal;
+    document.getElementById("statTotalOrders").innerText = ordersState.length;
+    document.getElementById("statTaken").innerText = ordersState.filter(o => o.taken).length;
+    document.getElementById("statPending").innerText = ordersState.filter(o => !o.taken).length;
+}
+
+/* ==================================================================
+   RENDER — Logs
+   ================================================================== */
+const LOG_ICON = {
+    order_add: { icon: "➕", cls: "add" },
+    order_edit: { icon: "✏️", cls: "edit" },
+    order_delete: { icon: "🗑", cls: "del" },
+    manual_add: { icon: "🔢", cls: "manual" }
+};
+
+function formatDateHuman(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleString("en-US", {
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    });
+}
+
+function renderLogs() {
+    const list = document.getElementById("logsList");
+    const emptyState = document.getElementById("logsEmptyState");
+
+    if (logsState.length === 0) {
+        list.innerHTML = "";
+        emptyState.style.display = "block";
+        return;
+    }
+    emptyState.style.display = "none";
+
+    list.innerHTML = logsState.map(log => {
+        const meta = LOG_ICON[log.log_type] || { icon: "📝", cls: "manual" };
+        const amountClass = log.amount >= 0 ? "pos" : "neg";
+        const amountText = log.amount >= 0 ? `+${log.amount}` : `${log.amount}`;
+
+        return `
+            <div class="log-item">
+                <div class="log-icon ${meta.cls}">${meta.icon}</div>
+                <div class="log-body">
+                    <div class="log-desc">${escapeHtml(log.description)}</div>
+                    <div class="log-meta">
+                        ${formatDateHuman(log.created_at)} &middot; total ${log.previous_total} → ${log.new_total}
+                        ${log.note ? ` &middot; note: ${escapeHtml(log.note)}` : ""}
+                    </div>
+                </div>
+                <div class="log-amount ${amountClass}">${amountText}</div>
+            </div>`;
+    }).join("");
+}
+
+/* ==================================================================
+   LOAD ALL DATA
+   ================================================================== */
+async function loadAll() {
+    const [counterRes, ordersRes, logsRes] = await Promise.all([
+        supabaseClient.from("daily_tag_counter").select("*").eq("id", 1).single(),
+        supabaseClient.from("daily_tag_orders").select("*").order("created_at", { ascending: true }),
+        supabaseClient.from("daily_tag_logs").select("*").order("created_at", { ascending: false })
+    ]);
+
+    if (counterRes.error) console.error(counterRes.error);
+    if (ordersRes.error) console.error(ordersRes.error);
+    if (logsRes.error) console.error(logsRes.error);
+
+    currentTotal = counterRes.data ? counterRes.data.total_tag : 0;
+    ordersState = ordersRes.data || [];
+    logsState = logsRes.data || [];
+
+    renderStats();
+    renderOrdersTable();
+    renderLogs();
+}
+
+/* ==================================================================
+   INIT
+   ================================================================== */
+loadAll();
+</script>
+</body>
+</html>
